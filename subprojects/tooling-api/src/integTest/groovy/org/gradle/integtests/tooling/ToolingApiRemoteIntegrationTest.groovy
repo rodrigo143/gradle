@@ -16,6 +16,7 @@
 
 package org.gradle.integtests.tooling
 
+import org.eclipse.jetty.http.MimeTypes
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 import org.gradle.integtests.tooling.fixture.ProgressEventsWithStatus
 import org.gradle.integtests.tooling.fixture.ToolingApi
@@ -32,7 +33,6 @@ import org.gradle.util.GradleVersion
 import org.gradle.util.Requires
 import org.gradle.util.TestPrecondition
 import org.junit.Rule
-import org.mortbay.jetty.MimeTypes
 import spock.lang.Issue
 
 import javax.servlet.http.HttpServletRequest

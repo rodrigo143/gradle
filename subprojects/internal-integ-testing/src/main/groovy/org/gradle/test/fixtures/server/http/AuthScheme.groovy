@@ -16,16 +16,17 @@
 
 package org.gradle.test.fixtures.server.http
 
-import org.mortbay.jetty.Response
-import org.mortbay.jetty.security.Authenticator
-import org.mortbay.jetty.security.BasicAuthenticator
-import org.mortbay.jetty.security.Constraint
-import org.mortbay.jetty.security.ConstraintMapping
-import org.mortbay.jetty.security.DigestAuthenticator
-import org.mortbay.jetty.security.SecurityHandler
-import org.mortbay.jetty.security.UserRealm
+import org.eclipse.jetty.security.ConstraintMapping
+import org.eclipse.jetty.security.ConstraintSecurityHandler
+import org.eclipse.jetty.security.SecurityHandler
+import org.eclipse.jetty.security.ServerAuthException
+import org.eclipse.jetty.security.authentication.BasicAuthenticator
+import org.eclipse.jetty.security.authentication.DigestAuthenticator
+import org.eclipse.jetty.server.Authentication
+import org.eclipse.jetty.util.security.Constraint
 
-import javax.servlet.http.HttpServletResponse
+import javax.servlet.ServletRequest
+import javax.servlet.ServletResponse
 
 enum AuthScheme {
     BASIC(new BasicAuthHandler()),
@@ -62,8 +63,8 @@ enum AuthScheme {
         protected Authenticator getAuthenticator() {
             return new BasicAuthenticator() {
                 @Override
-                void sendChallenge(UserRealm realm, Response response) throws IOException {
-                    response.sendError(HttpServletResponse.SC_NOT_FOUND)
+                Authentication validateRequest(ServletRequest req, ServletResponse res, boolean mandatory) throws ServerAuthException {
+                    return Authentication.SEND_FAILURE
                 }
             }
         }
@@ -72,7 +73,7 @@ enum AuthScheme {
     abstract static class AuthSchemeHandler {
         SecurityHandler createSecurityHandler(String path, TestUserRealm realm) {
             def constraintMapping = createConstraintMapping(path)
-            def securityHandler = new SecurityHandler()
+            def securityHandler = new ConstraintSecurityHandler()
             securityHandler.userRealm = realm
             securityHandler.constraintMappings = [constraintMapping] as ConstraintMapping[]
             securityHandler.authenticator = authenticator

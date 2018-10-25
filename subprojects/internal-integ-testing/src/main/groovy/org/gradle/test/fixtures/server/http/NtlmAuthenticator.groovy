@@ -18,52 +18,51 @@ package org.gradle.test.fixtures.server.http
 
 import jcifs.http.NtlmSsp
 import jcifs.smb.NtlmPasswordAuthentication
-import org.mortbay.jetty.HttpHeaders
-import org.mortbay.jetty.Request
-import org.mortbay.jetty.Response
-import org.mortbay.jetty.security.Authenticator
-import org.mortbay.jetty.security.Credential
-import org.mortbay.jetty.security.UserRealm
+import org.eclipse.jetty.http.HttpHeaders
+import org.eclipse.jetty.security.Authenticator
+import org.eclipse.jetty.security.ServerAuthException
+import org.eclipse.jetty.server.Authentication
+import org.eclipse.jetty.server.Request
+import org.eclipse.jetty.server.Response
+import org.eclipse.jetty.server.UserIdentity
+import org.eclipse.jetty.util.security.Credential
 
+import javax.servlet.ServletRequest
+import javax.servlet.ServletResponse
+import javax.servlet.http.HttpServletRequest
 import javax.servlet.http.HttpServletResponse
 import java.security.Principal
 
 class NtlmAuthenticator implements Authenticator {
     static final String NTLM_AUTH_METHOD = 'NTLM'
+    private AuthConfiguration configuration
 
     @Override
-    Principal authenticate(UserRealm realm, String pathInContext, Request request, Response response) throws IOException {
-        NtlmConnectionAuthentication connectionAuth = request.connection.associatedObject
+    void setConfiguration(AuthConfiguration configuration) {
+        this.configuration = configuration
+    }
+
+    @Override
+    void prepareRequest(ServletRequest request) {
+
+    }
+
+    @Override
+    Authentication validateRequest(ServletRequest request, ServletResponse response, boolean mandatory) throws ServerAuthException {
+        NtlmConnectionAuthentication connectionAuth //= request.connection.associatedObject
 
         if (connectionAuth == null) {
             connectionAuth = new NtlmConnectionAuthentication(challenge: new byte[8])
             new Random().nextBytes(connectionAuth.challenge)
-
-            request.connection.associatedObject = connectionAuth
         }
 
-        if (connectionAuth.authenticated) {
-            request.authType = authMethod
-            request.userPrincipal = connectionAuth.principal
+        NtlmPasswordAuthentication authentication = NtlmSsp.authenticate((HttpServletRequest)request, (HttpServletResponse)response, connectionAuth.challenge)
+        return authentication
+    }
 
-            return connectionAuth.principal
-        } else {
-            NtlmPasswordAuthentication authentication = NtlmSsp.authenticate(request, response, connectionAuth.challenge)
-
-            if (authentication != null) {
-                Principal principal = realm.authenticate(authentication.username, new TestNtlmCredentials(authentication, connectionAuth.challenge), request)
-
-                if (principal != null) {
-                    request.authType = authMethod
-                    request.userPrincipal = principal
-                    connectionAuth.principal = principal
-
-                    return principal
-                } else {
-                    badCredentials(response)
-                }
-            }
-        }
+    @Override
+    boolean secureResponse(ServletRequest request, ServletResponse response, boolean mandatory, Authentication.User validatedUser) throws ServerAuthException {
+        return false
     }
 
     @Override

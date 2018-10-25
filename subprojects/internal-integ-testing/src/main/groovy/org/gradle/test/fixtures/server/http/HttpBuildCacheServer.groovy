@@ -17,13 +17,12 @@
 package org.gradle.test.fixtures.server.http
 
 import com.google.common.base.Preconditions
+import org.eclipse.jetty.server.Handler
+import org.eclipse.jetty.servlet.FilterHolder
+import org.eclipse.jetty.webapp.WebAppContext
 import org.gradle.test.fixtures.file.TestDirectoryProvider
 import org.gradle.test.fixtures.file.TestFile
 import org.junit.rules.ExternalResource
-import org.mortbay.jetty.Handler
-import org.mortbay.jetty.servlet.FilterHolder
-import org.mortbay.jetty.webapp.WebAppContext
-import org.mortbay.servlet.RestFilter
 
 class HttpBuildCacheServer extends ExternalResource implements HttpServerFixture {
     private final TestDirectoryProvider provider

@@ -18,21 +18,30 @@ package org.gradle.test.fixtures.server.http
 
 import com.google.common.collect.Sets
 import groovy.transform.CompileStatic
+import org.eclipse.jetty.http.HttpHeader
+import org.eclipse.jetty.http.HttpScheme
+import org.eclipse.jetty.http.HttpVersion
+import org.eclipse.jetty.io.EndPoint
+import org.eclipse.jetty.security.SecurityHandler
+import org.eclipse.jetty.server.ConnectionFactory
+import org.eclipse.jetty.server.Connector
+import org.eclipse.jetty.server.Handler
+import org.eclipse.jetty.server.HttpConfiguration
+import org.eclipse.jetty.server.HttpConnectionFactory
+import org.eclipse.jetty.server.Request
+import org.eclipse.jetty.server.SecureRequestCustomizer
+import org.eclipse.jetty.server.Server
+import org.eclipse.jetty.server.ServerConnector
+import org.eclipse.jetty.server.SslConnectionFactory
+import org.eclipse.jetty.server.handler.AbstractHandler
+import org.eclipse.jetty.server.handler.HandlerCollection
+import org.eclipse.jetty.util.ssl.SslContextFactory
 import org.gradle.internal.BiAction
+import org.gradle.internal.TriAction
 import org.gradle.util.ports.FixedAvailablePortAllocator
 import org.gradle.util.ports.PortAllocator
-import org.mortbay.io.EndPoint
-import org.mortbay.jetty.Connector
-import org.mortbay.jetty.Handler
-import org.mortbay.jetty.HttpHeaders
-import org.mortbay.jetty.Request
-import org.mortbay.jetty.Server
-import org.mortbay.jetty.bio.SocketConnector
-import org.mortbay.jetty.handler.AbstractHandler
-import org.mortbay.jetty.handler.HandlerCollection
-import org.mortbay.jetty.security.SecurityHandler
-import org.mortbay.jetty.security.SslSocketConnector
 
+import javax.servlet.ServletException
 import javax.servlet.http.HttpServletRequest
 import javax.servlet.http.HttpServletResponse
 
@@ -40,8 +49,8 @@ import javax.servlet.http.HttpServletResponse
 trait HttpServerFixture {
     private final PortAllocator portAllocator = FixedAvailablePortAllocator.instance
     private final Server server = new Server()
-    private Connector connector
-    private SslSocketConnector sslConnector
+    private ServerConnector connector
+    private ServerConnector sslConnector
     private final HandlerCollection collection = new HandlerCollection()
     private TestUserRealm realm
     private SecurityHandler securityHandler
@@ -102,10 +111,19 @@ trait HttpServerFixture {
         this.authenticationScheme = authenticationScheme
     }
 
-    void setSslPreHandler(BiAction<EndPoint, Request> handler) {
+    void setSslPreHandler(TriAction<Connector, HttpConfiguration, Request> handler) {
         server.connectors.each { connector ->
-            if (connector instanceof InterceptableSslSocketConnector) {
-                connector.sslPreHandler = handler
+            ConnectionFactory factory = connector.getConnectionFactory(HttpScheme.HTTPS.asString());
+            if (factory == null) {
+                return
+            }
+            HttpConfiguration configuration = ((HttpConnectionFactory)factory).getHttpConfiguration();
+            if (configuration == null) {
+                return
+            }
+            InterceptableCustomizer customizer = configuration.getCustomizer(InterceptableCustomizer.class)
+            if (customizer != null) {
+                customizer.sslPreHandler = handler
             }
         }
     }
@@ -139,7 +157,7 @@ trait HttpServerFixture {
 
     private boolean createConnector() {
         assignedPort = portAllocator.assignPort()
-        connector = new SocketConnector()
+        connector = new ServerConnector(server)
         connector.port = assignedPort
         server.addConnector(connector)
         try {
@@ -162,8 +180,9 @@ trait HttpServerFixture {
             this.allHeaders = allHeaders
         }
 
-        void handle(String target, HttpServletRequest request, HttpServletResponse response, int dispatch) {
-            allHeaders << request.getHeaderNames().toList().collectEntries { headerName -> [headerName, request.getHeader(headerName as String)] }
+        @Override
+        void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+            allHeaders.add request.getHeaderNames().toList().collectEntries { headerName -> [headerName, request.getHeader(headerName as String)] }
             String authorization = getAuthorizationHeader(request)
             if (authorization != null) {
                 synchronized (authenticationAttempts) {
@@ -180,7 +199,7 @@ trait HttpServerFixture {
         }
 
         protected String getAuthorizationHeader(HttpServletRequest request) {
-            def header = request.getHeader(HttpHeaders.AUTHORIZATION)
+            def header = request.getHeader(HttpHeader.AUTHORIZATION.asString())
             return header
         }
     }
@@ -206,14 +225,22 @@ trait HttpServerFixture {
     }
 
     void enableSsl(String keyStore, String keyPassword, String trustStore = null, String trustPassword = null) {
-        sslConnector = new InterceptableSslSocketConnector()
-        sslConnector.keystore = keyStore
-        sslConnector.keyPassword = keyPassword
+        SslContextFactory sslContextFactory = new SslContextFactory();
+        sslContextFactory.setKeyStorePath(keyStore);
+        sslContextFactory.setKeyStorePassword(keyPassword);
         if (trustStore) {
-            sslConnector.needClientAuth = true
-            sslConnector.truststore = trustStore
-            sslConnector.trustPassword = trustPassword
+            sslContextFactory.setTrustStorePath(trustStore)
+            sslContextFactory.setTrustStorePassword(trustPassword)
         }
+
+        HttpConfiguration httpsConfiguration = new HttpConfiguration();
+        httpsConfiguration.addCustomizer(new SecureRequestCustomizer());
+        httpsConfiguration.addCustomizer(new InterceptableCustomizer());
+
+        sslConnector = new ServerConnector(server,
+                new SslConnectionFactory(sslContextFactory, HttpVersion.HTTP_1_1.asString()),
+                new HttpConnectionFactory(httpsConfiguration));
+
         server.addConnector(sslConnector)
         if (server.started) {
             sslConnector.start()
@@ -242,20 +269,20 @@ trait HttpServerFixture {
         sslConnector.localPort
     }
 
-    private void shutdownConnector(Connector connector) {
+    private void shutdownConnector(ServerConnector connector) {
         connector.stop()
         connector.close()
         server?.removeConnector(connector)
     }
 }
 
-class InterceptableSslSocketConnector extends SslSocketConnector {
-    BiAction<EndPoint, Request> sslPreHandler
+class InterceptableCustomizer implements HttpConfiguration.Customizer {
+    TriAction<Connector, HttpConfiguration, Request> sslPreHandler
 
-    void customize(EndPoint endpoint, Request request) {
+    @Override
+    void customize(Connector connector, HttpConfiguration channelConfig, Request request) {
         if (sslPreHandler) {
-            sslPreHandler.execute(endpoint, request)
+            sslPreHandler.execute(connector, channelConfig, request)
         }
-        super.customize(endpoint, request)
     }
 }

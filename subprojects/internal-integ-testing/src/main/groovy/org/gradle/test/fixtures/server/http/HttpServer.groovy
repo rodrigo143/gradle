@@ -19,8 +19,14 @@ import com.google.common.net.UrlEscapers
 import com.google.gson.Gson
 import com.google.gson.JsonElement
 import groovy.xml.MarkupBuilder
+import org.eclipse.jetty.http.MimeTypes
+import org.eclipse.jetty.server.Connector
+import org.eclipse.jetty.server.Handler
+import org.eclipse.jetty.server.HttpConfiguration
+import org.eclipse.jetty.server.Request
+import org.eclipse.jetty.server.handler.AbstractHandler
 import org.gradle.api.artifacts.repositories.PasswordCredentials
-import org.gradle.internal.BiAction
+import org.gradle.internal.TriAction
 import org.gradle.internal.hash.HashUtil
 import org.gradle.test.fixtures.server.ExpectOne
 import org.gradle.test.fixtures.server.ServerExpectation
@@ -28,16 +34,10 @@ import org.gradle.test.fixtures.server.ServerWithExpectations
 import org.gradle.test.matchers.UserAgentMatcher
 import org.gradle.util.GFileUtils
 import org.hamcrest.Matcher
-import org.mortbay.io.EndPoint
-import org.mortbay.jetty.Handler
-import org.mortbay.jetty.HttpHeaders
-import org.mortbay.jetty.HttpStatus
-import org.mortbay.jetty.MimeTypes
-import org.mortbay.jetty.Request
-import org.mortbay.jetty.handler.AbstractHandler
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
+import javax.servlet.ServletException
 import javax.servlet.http.HttpServletRequest
 import javax.servlet.http.HttpServletResponse
 import java.util.concurrent.CountDownLatch
@@ -90,8 +90,8 @@ class HttpServer extends ServerWithExpectations implements HttpServerFixture {
     @Override
     Handler getCustomHandler() {
         return new AbstractHandler() {
-            void handle(String target, HttpServletRequest request, HttpServletResponse response, int dispatch) {
-                String d = request.getQueryString()
+            @Override
+            void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
                 if (request.handled) {
                     return
                 }
@@ -601,7 +601,8 @@ class HttpServer extends ServerWithExpectations implements HttpServerFixture {
         HttpExpectOne expectation = new HttpExpectOne(action, methods, path)
         expectations << expectation
         add(path, matchPrefix, methods, new AbstractHandler() {
-            void handle(String target, HttpServletRequest request, HttpServletResponse response, int dispatch) {
+            @Override
+            void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
                 if (expectation.run) {
                     return
                 }
@@ -616,7 +617,8 @@ class HttpServer extends ServerWithExpectations implements HttpServerFixture {
 
     private void allow(String path, boolean matchPrefix, Collection<String> methods, Action action) {
         add(path, matchPrefix, methods, new AbstractHandler() {
-            void handle(String target, HttpServletRequest request, HttpServletResponse response, int dispatch) {
+            @Override
+            void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
                 action.handle(request, response)
                 request.handled = true
             }
@@ -627,7 +629,8 @@ class HttpServer extends ServerWithExpectations implements HttpServerFixture {
         assert path.startsWith('/')
         def prefix = path == '/' ? '/' : path + '/'
         collection.addHandler(new AbstractHandler() {
-            void handle(String target, HttpServletRequest request, HttpServletResponse response, int dispatch) {
+            @Override
+            void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
                 if (methods != null && !methods.contains(request.method)) {
                     return
                 }
@@ -647,9 +650,9 @@ class HttpServer extends ServerWithExpectations implements HttpServerFixture {
      * Blocks on SSL handshake for 60 seconds.
      */
     void expectSslHandshakeBlocking() {
-        sslPreHandler = new BiAction<EndPoint, Request>() {
+        sslPreHandler = new TriAction<Connector, HttpConfiguration, Request>() {
             @Override
-            void execute(EndPoint endPoint, Request request) {
+            void execute(Connector connector, HttpConfiguration channelConfig, Request request) {
                 Thread.sleep(TimeUnit.SECONDS.toMillis(60))
             }
         }
