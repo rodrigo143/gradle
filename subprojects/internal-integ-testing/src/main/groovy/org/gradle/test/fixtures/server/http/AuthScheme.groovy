@@ -64,7 +64,6 @@ enum AuthScheme {
         @Override
         protected Authenticator getAuthenticator() {
             return new BasicAuthenticator() {
-
                 @Override
                 Authentication validateRequest(ServletRequest req, ServletResponse res, boolean mandatory) throws ServerAuthException {
                     ((HttpServletResponse)res).sendError(HttpServletResponse.SC_NOT_FOUND)

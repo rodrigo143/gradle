@@ -84,10 +84,10 @@ task listJars {
         where:
         authSchemeName     | configuredAuthentication                                                      | authScheme        | authenticationAttempts
 //        'basic'            | 'authentication { auth(BasicAuthentication) }'                                | BASIC             | ['Basic']
-        'digest'           | 'authentication { auth(DigestAuthentication) }'                               | DIGEST            | ['None', 'Digest']
+//        'digest'           | 'authentication { auth(DigestAuthentication) }'                               | DIGEST            | ['None', 'Digest']
 //        'default'          | ''                                                                            | BASIC             | ['None', 'Basic']
 //        'default'          | ''                                                                            | DIGEST            | ['None', 'Digest']
-//        'default'          | ''                                                                            | NTLM              | ['None', 'NTLM']
+        'default'          | ''                                                                            | NTLM              | ['None', 'NTLM']
 //        'basic'            | 'authentication { auth(BasicAuthentication) }'                                | HIDE_UNAUTHORIZED | ['Basic']
 //        'basic and digest' | 'authentication { basic(BasicAuthentication)\ndigest(DigestAuthentication) }' | DIGEST            | ['Basic', 'Digest']
     }

@@ -23,6 +23,10 @@ class TestUserRealm extends AbstractLoginService {
     String username
     String password
 
+    TestUserRealm() {
+        setName("test")
+    }
+
     @Override
     protected String[] loadRoleInfo(UserPrincipal user) {
         return AuthScheme.AuthSchemeHandler.ROLES
