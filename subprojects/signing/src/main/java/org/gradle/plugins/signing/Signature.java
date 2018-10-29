@@ -25,6 +25,7 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.TaskDependency;
 import org.gradle.plugins.signing.signatory.Signatory;
 import org.gradle.plugins.signing.type.SignatureType;
 
@@ -376,6 +377,12 @@ public class Signature extends AbstractPublishArtifact {
     @Internal
     Buildable getSource() {
         return source;
+    }
+
+    @Internal
+    @Override
+    public TaskDependency getBuildDependencies() {
+        return super.getBuildDependencies();
     }
 
     /**
