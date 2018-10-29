@@ -199,7 +199,7 @@ public class Signature extends AbstractPublishArtifact {
      *
      * @return The file. May be {@code null} if unknown at this time.
      */
-    @PathSensitive(PathSensitivity.NAME_ONLY)
+    @PathSensitive(PathSensitivity.NONE)
     @InputFile
     public File getToSign() {
         File toSign = uncheckedCall(toSignGenerator);
