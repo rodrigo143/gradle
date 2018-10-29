@@ -21,7 +21,6 @@ import groovy.transform.CompileStatic
 import org.eclipse.jetty.http.HttpHeader
 import org.eclipse.jetty.http.HttpScheme
 import org.eclipse.jetty.http.HttpVersion
-import org.eclipse.jetty.io.EndPoint
 import org.eclipse.jetty.security.SecurityHandler
 import org.eclipse.jetty.server.ConnectionFactory
 import org.eclipse.jetty.server.Connector
@@ -36,7 +35,6 @@ import org.eclipse.jetty.server.SslConnectionFactory
 import org.eclipse.jetty.server.handler.AbstractHandler
 import org.eclipse.jetty.server.handler.HandlerCollection
 import org.eclipse.jetty.util.ssl.SslContextFactory
-import org.gradle.internal.BiAction
 import org.gradle.internal.TriAction
 import org.gradle.util.ports.FixedAvailablePortAllocator
 import org.gradle.util.ports.PortAllocator
@@ -51,7 +49,8 @@ trait HttpServerFixture {
     private final Server server = new Server()
     private ServerConnector connector
     private ServerConnector sslConnector
-    private final HandlerCollection collection = new HandlerCollection()
+    private final HandlerCollection collection = new HandlerCollection(true)
+    private final HandlerCollection securedCollection = new HandlerCollection(true)
     private TestUserRealm realm
     private SecurityHandler securityHandler
     private AuthScheme authenticationScheme = AuthScheme.BASIC
@@ -85,6 +84,10 @@ trait HttpServerFixture {
 
     HandlerCollection getCollection() {
         return collection
+    }
+
+    HandlerCollection getSecuredCollection() {
+        return securedCollection
     }
 
     Set<String> getAuthenticationAttempts() {
@@ -257,7 +260,11 @@ trait HttpServerFixture {
             realm.username = username
             realm.password = password
             securityHandler = authenticationScheme.handler.createSecurityHandler(path, realm)
+            securityHandler.setHandler(securedCollection)
             collection.addHandler(securityHandler)
+            if (server.isStarted()) {
+                securityHandler.start()
+            }
         }
     }
 

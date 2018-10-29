@@ -25,7 +25,7 @@ class TestUserRealm extends AbstractLoginService {
 
     @Override
     protected String[] loadRoleInfo(UserPrincipal user) {
-        return new String[0]
+        return AuthScheme.AuthSchemeHandler.ROLES
     }
 
     @Override

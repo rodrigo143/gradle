@@ -18,13 +18,11 @@ package org.gradle.test.fixtures.server.http
 
 import jcifs.http.NtlmSsp
 import jcifs.smb.NtlmPasswordAuthentication
-import org.eclipse.jetty.http.HttpHeaders
+import org.eclipse.jetty.http.HttpHeader
 import org.eclipse.jetty.security.Authenticator
 import org.eclipse.jetty.security.ServerAuthException
 import org.eclipse.jetty.server.Authentication
-import org.eclipse.jetty.server.Request
 import org.eclipse.jetty.server.Response
-import org.eclipse.jetty.server.UserIdentity
 import org.eclipse.jetty.util.security.Credential
 
 import javax.servlet.ServletRequest
@@ -49,12 +47,8 @@ class NtlmAuthenticator implements Authenticator {
 
     @Override
     Authentication validateRequest(ServletRequest request, ServletResponse response, boolean mandatory) throws ServerAuthException {
-        NtlmConnectionAuthentication connectionAuth //= request.connection.associatedObject
-
-        if (connectionAuth == null) {
-            connectionAuth = new NtlmConnectionAuthentication(challenge: new byte[8])
-            new Random().nextBytes(connectionAuth.challenge)
-        }
+        NtlmConnectionAuthentication connectionAuth = new NtlmConnectionAuthentication(challenge: new byte[8])
+        new Random().nextBytes(connectionAuth.challenge)
 
         NtlmPasswordAuthentication authentication = NtlmSsp.authenticate((HttpServletRequest)request, (HttpServletResponse)response, connectionAuth.challenge)
         return authentication
@@ -71,7 +65,7 @@ class NtlmAuthenticator implements Authenticator {
     }
 
     private void badCredentials(Response response) {
-        response.setHeader(HttpHeaders.WWW_AUTHENTICATE, authMethod)
+        response.setHeader(HttpHeader.WWW_AUTHENTICATE, authMethod)
         response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
     }
 

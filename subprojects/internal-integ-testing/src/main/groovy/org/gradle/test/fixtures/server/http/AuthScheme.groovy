@@ -16,6 +16,7 @@
 
 package org.gradle.test.fixtures.server.http
 
+import org.eclipse.jetty.security.Authenticator
 import org.eclipse.jetty.security.ConstraintMapping
 import org.eclipse.jetty.security.ConstraintSecurityHandler
 import org.eclipse.jetty.security.SecurityHandler
@@ -27,6 +28,7 @@ import org.eclipse.jetty.util.security.Constraint
 
 import javax.servlet.ServletRequest
 import javax.servlet.ServletResponse
+import javax.servlet.http.HttpServletResponse
 
 enum AuthScheme {
     BASIC(new BasicAuthHandler()),
@@ -62,8 +64,10 @@ enum AuthScheme {
         @Override
         protected Authenticator getAuthenticator() {
             return new BasicAuthenticator() {
+
                 @Override
                 Authentication validateRequest(ServletRequest req, ServletResponse res, boolean mandatory) throws ServerAuthException {
+                    ((HttpServletResponse)res).sendError(HttpServletResponse.SC_NOT_FOUND)
                     return Authentication.SEND_FAILURE
                 }
             }
@@ -71,10 +75,12 @@ enum AuthScheme {
     }
 
     abstract static class AuthSchemeHandler {
+        static final String[] ROLES = ["user"] as String[]
+
         SecurityHandler createSecurityHandler(String path, TestUserRealm realm) {
             def constraintMapping = createConstraintMapping(path)
             def securityHandler = new ConstraintSecurityHandler()
-            securityHandler.userRealm = realm
+            securityHandler.loginService = realm
             securityHandler.constraintMappings = [constraintMapping] as ConstraintMapping[]
             securityHandler.authenticator = authenticator
             return securityHandler
@@ -88,7 +94,7 @@ enum AuthScheme {
             def constraint = new Constraint()
             constraint.name = constraintName()
             constraint.authenticate = true
-            constraint.roles = ['*'] as String[]
+            constraint.roles = ROLES
             def constraintMapping = new ConstraintMapping()
             constraintMapping.pathSpec = path
             constraintMapping.constraint = constraint
