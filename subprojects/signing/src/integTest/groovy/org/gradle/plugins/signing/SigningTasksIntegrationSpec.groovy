@@ -22,6 +22,7 @@ import spock.lang.IgnoreIf
 import spock.lang.Unroll
 
 import static org.gradle.plugins.signing.SigningIntegrationSpec.SignMethod.GPG_CMD
+import static org.gradle.plugins.signing.SigningIntegrationSpec.SignMethod.OPEN_GPG
 
 class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
 
@@ -102,10 +103,11 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
         ":signJar" in nonSkippedTasks
 
         when:
-        if (originalSignMethod != GPG_CMD) {
+        def newSignMethod = originalSignMethod == GPG_CMD ? OPEN_GPG : GPG_CMD
+        if (newSignMethod == GPG_CMD) {
             setupGpgCmd()
         }
-        def signatoryProviderClass = originalSignMethod != GPG_CMD ? GnupgSignatoryProvider : PgpSignatoryProvider
+        def signatoryProviderClass = newSignMethod == GPG_CMD ? GnupgSignatoryProvider : PgpSignatoryProvider
         buildFile << """
             signing {
                 signatories = new ${signatoryProviderClass.name}()
