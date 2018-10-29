@@ -20,6 +20,7 @@ import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
+import org.gradle.api.Describable;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.internal.artifacts.ivyservice.ArtifactCacheMetadata;
 import org.gradle.api.internal.file.collections.ImmutableFileCollection;
@@ -70,6 +71,7 @@ import org.gradle.internal.snapshot.ValueSnapshot;
 import org.gradle.internal.snapshot.impl.ImplementationSnapshot;
 import org.gradle.util.GFileUtils;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.time.Duration;
 import java.util.List;
@@ -99,11 +101,13 @@ public class DefaultCachingTransformerExecutor implements CachingTransformerExec
     private final PersistentCache cache;
     private final ProducerGuard<CacheKey> producing = ProducerGuard.adaptive();
     private final Map<CacheKey, List<File>> resultHashToResult = new ConcurrentHashMap<CacheKey, List<File>>();
+    private final ArtifactTransformListener artifactTransformListener;
 
     public DefaultCachingTransformerExecutor(WorkExecutor<UpToDateResult> workExecutor, ArtifactCacheMetadata artifactCacheMetadata, CacheRepository cacheRepository, InMemoryCacheDecoratorFactory cacheDecoratorFactory,
-                                             FileSystemSnapshotter fileSystemSnapshotter, FileAccessTimeJournal fileAccessTimeJournal) {
+                                             FileSystemSnapshotter fileSystemSnapshotter, FileAccessTimeJournal fileAccessTimeJournal, ArtifactTransformListener artifactTransformListener) {
         this.workExecutor = workExecutor;
         this.fileSystemSnapshotter = fileSystemSnapshotter;
+        this.artifactTransformListener = artifactTransformListener;
         File transformsStoreDirectory = artifactCacheMetadata.getTransformsStoreDirectory();
         filesOutputDirectory = new File(transformsStoreDirectory, TRANSFORMS_STORE.getKey());
         File filesOutputDirectory = new File(transformsStoreDirectory, TRANSFORMS_STORE.getKey());
@@ -147,13 +151,12 @@ public class DefaultCachingTransformerExecutor implements CachingTransformerExec
     }
 
     @Override
-    public List<File> getResult(File primaryInput, Transformer transformer) {
-        return transform(primaryInput, transformer);
+    public List<File> getResult(File primaryInput, Transformer transformer, Describable subject) {
+        return transform(primaryInput, transformer, subject);
     }
 
-
-    private List<File> transform(File primaryInput, Transformer transformer) {
-        TransformerExecution execution = new TransformerExecution(primaryInput, transformer);
+    private List<File> transform(File primaryInput, Transformer transformer, Describable subject) {
+        TransformerExecution execution = new TransformerExecution(primaryInput, transformer, subject);
         UpToDateResult result = workExecutor.execute(execution);
         if (result.getFailure() != null) {
             throw UncheckedException.throwAsUncheckedException(result.getFailure());
@@ -227,13 +230,15 @@ public class DefaultCachingTransformerExecutor implements CachingTransformerExec
     private class TransformerExecution implements UnitOfWork {
         private final File primaryInput;
         private final Transformer transformer;
+        private final Describable subject;
         private final CacheKey cacheKey;
-        private List<File> result;
         private final com.google.common.base.Supplier<HashCode> persistentCacheKey;
+        private List<File> result;
 
-        public TransformerExecution(File primaryInput, Transformer transformer) {
+        public TransformerExecution(File primaryInput, Transformer transformer, Describable subject) {
             this.primaryInput = primaryInput;
             this.transformer = transformer;
+            this.subject = subject;
             this.cacheKey = getCacheKey(primaryInput, transformer);
             this.persistentCacheKey= Suppliers.memoize(() -> cacheKey.getPersistentCacheKey());
         }
@@ -284,7 +289,18 @@ public class DefaultCachingTransformerExecutor implements CachingTransformerExec
                 result = cachedResult;
                 return factory.create();
             }
-            return producing.guardByKey(cacheKey, factory);
+            return producing.guardByKey(cacheKey, new Factory<T>() {
+                @Nullable
+                @Override
+                public T create() {
+                    artifactTransformListener.beforeTransformerInvocation(transformer, subject);
+                    try {
+                        return factory.create();
+                    } finally {
+                        artifactTransformListener.afterTransformerInvocation(transformer, subject);
+                    }
+                }
+            });
         }
 
         @Override
