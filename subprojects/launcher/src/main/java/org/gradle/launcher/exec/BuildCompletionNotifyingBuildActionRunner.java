@@ -16,6 +16,7 @@
 
 package org.gradle.launcher.exec;
 
+import org.gradle.initialization.ReportedException;
 import org.gradle.internal.UncheckedException;
 import org.gradle.internal.invocation.BuildAction;
 import org.gradle.internal.invocation.BuildActionRunner;
@@ -41,7 +42,8 @@ public class BuildCompletionNotifyingBuildActionRunner implements BuildActionRun
         } catch (Throwable throwable) {
             failure = throwable;
         }
-        endOfBuildNotifier.fireBuildComplete(failure);
+        Throwable buildFailure = failure instanceof ReportedException ? failure.getCause() : failure;
+        endOfBuildNotifier.fireBuildComplete(buildFailure);
         if (failure != null) {
             throw UncheckedException.throwAsUncheckedException(failure);
         }

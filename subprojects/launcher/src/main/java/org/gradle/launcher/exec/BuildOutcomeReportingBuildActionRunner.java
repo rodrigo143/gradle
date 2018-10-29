@@ -31,6 +31,7 @@ import org.gradle.internal.invocation.BuildController;
 import org.gradle.internal.logging.text.StyledTextOutputFactory;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.internal.time.Clock;
+import org.gradle.tooling.internal.protocol.test.InternalTestExecutionException;
 
 public class BuildOutcomeReportingBuildActionRunner implements BuildActionRunner {
     private final BuildActionRunner delegate;
@@ -63,7 +64,8 @@ public class BuildOutcomeReportingBuildActionRunner implements BuildActionRunner
             failure = throwable;
         }
 
-        buildLogger.logResult(failure);
+        Throwable buildFailure = failure instanceof InternalTestExecutionException ? failure.getCause() : failure;
+        buildLogger.logResult(buildFailure);
         new TaskExecutionStatisticsReporter(styledTextOutputFactory).buildFinished(taskStatisticsCollector.getStatistics());
         if (failure != null) {
             throw new ReportedException(failure);
