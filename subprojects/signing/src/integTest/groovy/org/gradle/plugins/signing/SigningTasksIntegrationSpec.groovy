@@ -16,7 +16,12 @@
 package org.gradle.plugins.signing
 
 import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
+import org.gradle.plugins.signing.signatory.internal.gnupg.GnupgSignatoryProvider
+import org.gradle.plugins.signing.signatory.pgp.PgpSignatoryProvider
 import spock.lang.IgnoreIf
+import spock.lang.Unroll
+
+import static org.gradle.plugins.signing.SigningIntegrationSpec.SignMethod.GPG_CMD
 
 class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
 
@@ -77,6 +82,176 @@ class SigningTasksIntegrationSpec extends SigningIntegrationSpec {
 
         then:
         [":signJar", ":signJavadocJar", ":signSourcesJar"].every { it in skippedTasks }
+    }
+
+    def "out-of-date when signatory changes"() {
+        given:
+        def originalSignMethod = signMethod
+        buildFile << """
+            ${keyInfo.addAsPropertiesScript()}
+            signing {
+                ${signingConfiguration()}
+                sign(jar)
+            }
+        """
+
+        when:
+        run "signJar"
+
+        then:
+        ":signJar" in nonSkippedTasks
+
+        when:
+        if (originalSignMethod != GPG_CMD) {
+            setupGpgCmd()
+        }
+        def signatoryProviderClass = originalSignMethod != GPG_CMD ? GnupgSignatoryProvider : PgpSignatoryProvider
+        buildFile << """
+            signing {
+                signatories = new ${signatoryProviderClass.name}()
+            }
+        """
+        run "signJar"
+
+        then:
+        ":signJar" in nonSkippedTasks
+
+        when:
+        run "signJar"
+
+        then:
+        ":signJar" in skippedTasks
+    }
+
+    def "out-of-date when signatureType changes"() {
+        given:
+        buildFile << """
+            ${keyInfo.addAsPropertiesScript()}
+            signing {
+                ${signingConfiguration()}
+                sign(jar)
+            }
+        """
+
+        when:
+        run "signJar"
+
+        then:
+        ":signJar" in nonSkippedTasks
+
+        when:
+        setupGpgCmd()
+        buildFile << """
+            signing {
+                signatureTypes.defaultType = 'sig'
+            }
+        """
+        run "signJar"
+
+        then:
+        ":signJar" in nonSkippedTasks
+
+        when:
+        run "signJar"
+
+        then:
+        ":signJar" in skippedTasks
+    }
+
+    def "out-of-date when input file changes"() {
+        given:
+        def inputFile = file("input.txt")
+        inputFile.text = "foo"
+        buildFile << """
+            ${keyInfo.addAsPropertiesScript()}
+            signing {
+                ${signingConfiguration()}
+            }
+            task signCustomFile(type: Sign) {
+                sign(file("input.txt"))
+            }
+        """
+
+        when:
+        run "signCustomFile"
+
+        then:
+        ":signCustomFile" in nonSkippedTasks
+        file("input.txt.asc").exists()
+
+        when:
+        inputFile.text = "bar"
+        run "signCustomFile"
+
+        then:
+        ":signCustomFile" in nonSkippedTasks
+
+        when:
+        run "signCustomFile"
+
+        then:
+        ":signCustomFile" in skippedTasks
+    }
+
+    def "out-of-date when output file is deleted"() {
+        given:
+        def inputFile = file("input.txt")
+        inputFile.text = "foo"
+        buildFile << """
+            ${keyInfo.addAsPropertiesScript()}
+            signing {
+                ${signingConfiguration()}
+            }
+            task signCustomFile(type: Sign) {
+                sign(file("input.txt"))
+            }
+        """
+
+        when:
+        run "signCustomFile"
+
+        then:
+        ":signCustomFile" in nonSkippedTasks
+        def outputFile = file("input.txt.asc")
+        outputFile.exists()
+
+        when:
+        outputFile.delete()
+        run "signCustomFile"
+
+        then:
+        ":signCustomFile" in nonSkippedTasks
+
+        when:
+        run "signCustomFile"
+
+        then:
+        ":signCustomFile" in skippedTasks
+    }
+
+    @Unroll
+    def "emits deprecation warning when Sign.#method is used"() {
+        given:
+        buildFile << """
+            ${keyInfo.addAsPropertiesScript()}
+            signing {
+                ${signingConfiguration()}
+                sign jar
+            }
+            signJar.doLast {
+                println $method
+            }
+        """
+
+        when:
+        executer.expectDeprecationWarning()
+        succeeds("signJar")
+
+        then:
+        outputContains("The Sign.$method method has been deprecated")
+
+        where:
+        method << ["getInputFiles()", "getOutputFiles()"]
     }
 
     def "trying to sign a task that isn't an archive task gives nice enough message"() {
