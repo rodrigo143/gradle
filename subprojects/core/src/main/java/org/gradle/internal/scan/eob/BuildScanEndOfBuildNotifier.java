@@ -14,10 +14,31 @@
  * limitations under the License.
  */
 
-package org.gradle.internal.classanalysis;
+package org.gradle.internal.scan.eob;
 
-import org.objectweb.asm.Opcodes;
+import org.gradle.internal.scan.UsedByScanPlugin;
 
-public class AsmConstants {
-    public static final int ASM_LEVEL = Opcodes.ASM7;
+import javax.annotation.Nullable;
+
+/**
+ * Used by the scan plugin to register a listener to be notified about the build finishing.
+ */
+@UsedByScanPlugin
+public interface BuildScanEndOfBuildNotifier {
+
+    interface BuildResult {
+        @Nullable
+        Throwable getFailure();
+    }
+
+    interface BuildScanResult {
+
+    }
+
+    interface Listener {
+        BuildScanResult execute(BuildResult buildResult);
+    }
+
+    void notify(Listener listener);
+
 }
