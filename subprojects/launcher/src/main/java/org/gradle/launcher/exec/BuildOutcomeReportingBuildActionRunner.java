@@ -21,7 +21,6 @@ import org.gradle.api.internal.tasks.execution.statistics.TaskExecutionStatistic
 import org.gradle.api.logging.Logging;
 import org.gradle.initialization.BuildRequestMetaData;
 import org.gradle.initialization.ReportedException;
-import org.gradle.internal.UncheckedException;
 import org.gradle.internal.buildevents.BuildLogger;
 import org.gradle.internal.buildevents.BuildStartedTime;
 import org.gradle.internal.buildevents.TaskExecutionStatisticsReporter;
@@ -64,12 +63,9 @@ public class BuildOutcomeReportingBuildActionRunner implements BuildActionRunner
             failure = throwable;
         }
 
-        Throwable buildFailure = failure instanceof ReportedException ? failure.getCause() : failure;
-        buildLogger.logResult(buildFailure);
+        buildLogger.logResult(failure);
         new TaskExecutionStatisticsReporter(styledTextOutputFactory).buildFinished(taskStatisticsCollector.getStatistics());
-        if (failure instanceof ReportedException) {
-            throw UncheckedException.throwAsUncheckedException(failure);
-        } else if (failure != null) {
+        if (failure != null) {
             throw new ReportedException(failure);
         }
     }
